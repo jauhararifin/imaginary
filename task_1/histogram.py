@@ -1,5 +1,6 @@
 import sys
 import os.path
+import matplotlib.pyplot as plt
 
 from PIL import Image, ImageDraw
 
@@ -40,31 +41,29 @@ print img[0,0]
 # ===================
 
 def calculate_image_histogram(image, channel_id=0):
-    # import random
-    return [i/255.0 for i in range(256)]
+    width, height = image.size
+    img = image.load()
+    histogram = [0 for i in range(256)]
+    for i in range(height):
+        for j in range(width):
+            color = img[j,i]
+            color_sum = []
+            if channel_id & 1:
+                color_sum += [color[0]]
+            if channel_id & 2:
+                color_sum += [color[1]]
+            if channel_id & 4:
+                color_sum += [color[2]]
+            value = round(sum(color_sum) / len(color_sum))
+            histogram[int(value)] += 1
+    
+    return [float(x)/float(width * height) for x in histogram]
 
 
-def generate_histogram_image(histogram, color=(255, 0, 0)):
-    histogram_points = [
-        (
-            HISTOGRAM_MARGIN + ((HISTOGRAM_WIDTH - 2 * HISTOGRAM_MARGIN) / 256.0) * i,
-            HISTOGRAM_HEIGHT - HISTOGRAM_MARGIN - (HISTOGRAM_HEIGHT - 2 * HISTOGRAM_MARGIN) * value
-        )
-        for i, value in enumerate(histogram)
-    ]
-    histogram_image = Image.new('RGB', (HISTOGRAM_WIDTH, HISTOGRAM_HEIGHT), color=(255, 255, 255))
-    histogram_draw = ImageDraw.Draw(histogram_image)
-    histogram_draw.line(histogram_points, fill=color)
-    return histogram_image
-
-
-red_histogram_image = generate_histogram_image(calculate_image_histogram(base_image, 1), (255, 0, 0))
-green_histogram_image = generate_histogram_image(calculate_image_histogram(base_image, 2), (0, 255, 0))
-blue_histogram_image = generate_histogram_image(calculate_image_histogram(base_image, 4), (0, 0, 255))
-grayscale_histogram_image = generate_histogram_image(calculate_image_histogram(base_image, 7), (0, 0, 0))
+plt.plot(calculate_image_histogram(base_image, 1), 'r')
+plt.plot(calculate_image_histogram(base_image, 2), 'g')
+plt.plot(calculate_image_histogram(base_image, 4), 'b')
+plt.plot(calculate_image_histogram(base_image, 7), 'k')
 
 base_image.show("Base Image")
-red_histogram_image.show("Red Histogram")
-green_histogram_image.show("Green Histogram")
-blue_histogram_image.show("Blue Histogram")
-grayscale_histogram_image.show("Grayscale Histogram")
+plt.show()
