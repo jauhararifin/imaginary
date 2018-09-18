@@ -120,27 +120,30 @@ for number, chain_codes in zip(data_y, data_x):
 knn = KNeighborsClassifier(n_neighbors=1, metric= 'manhattan')
 knn.fit(data_x, data_y)
 
-image = cv2.imread('test_4.jpg')
-image_color = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-height, width, _ = image_color.shape
-image_grayscale = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-boundaries, chain_codes = get_all_chain_codes_in_image(image_grayscale)
-chain_codes = list(map(lambda y: stretch_chain_code(y, 180), chain_codes))
+cap = cv2.VideoCapture(0)
+while True:
+  ret, image = cap.read()
 
-predicted = knn.predict(chain_codes)
-for boundary, chain_code, result in zip(boundaries, chain_codes, predicted):
-  upper_bound, lower_bound = boundary
+  height, width, _ = image.shape
+  image_grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+  boundaries, chain_codes = get_all_chain_codes_in_image(image_grayscale)
+  chain_codes = list(map(lambda y: stretch_chain_code(y, 180), chain_codes))
 
-  area = abs(lower_bound[1] - upper_bound[1]) * abs(lower_bound[0] - upper_bound[0])
-  if area < height * width * 0.001:
-  	continue
+  predicted = knn.predict(chain_codes)
+  for boundary, chain_code, result in zip(boundaries, chain_codes, predicted):
+    upper_bound, lower_bound = boundary
+    area = abs(lower_bound[1] - upper_bound[1]) * abs(lower_bound[0] - upper_bound[0])
+    if area < height * width * 0.001:
+      continue
+    
+    print("%s predicted as %d" % ("".join(map(lambda x: str(x), chain_code)), result))
+    cv2.rectangle(image_color, upper_bound, lower_bound, (255,0,0), 2)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(image_color, str(result), (upper_bound[0], upper_bound[1] + 10), font, 0.5, (0,0,255), 1, cv2.LINE_AA)
 
-  print("%s predicted as %d" % ("".join(map(lambda x: str(x), chain_code)), result))
-  cv2.rectangle(image_color, upper_bound, lower_bound, (255,0,0), 2)
-  font = cv2.FONT_HERSHEY_SIMPLEX
-  cv2.putText(image_color, str(result), (upper_bound[0], upper_bound[1] + 10), font, 0.5, (0,0,255), 1, cv2.LINE_AA)
+  cv2.imshow('raw image', image_color)
+  if cv2.waitKey(1) & 0xFF == ord('q'):
+  	break
 
-cv2.imshow('raw image', image_color)
-
-cv2.waitKey(0)
+cap.release()
 cv2.destroyAllWindows()
