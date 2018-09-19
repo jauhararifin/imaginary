@@ -136,12 +136,12 @@ while True:
     if area < height * width * 0.001:
       continue
     
-    print("%s predicted as %d" % ("".join(map(lambda x: str(x), chain_code)), result))
-    cv2.rectangle(image_color, upper_bound, lower_bound, (255,0,0), 2)
+    # print("%s predicted as %d" % ("".join(map(lambda x: str(x), chain_code)), result))
+    cv2.rectangle(image, upper_bound, lower_bound, (255,0,0), 2)
     font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(image_color, str(result), (upper_bound[0], upper_bound[1] + 10), font, 0.5, (0,0,255), 1, cv2.LINE_AA)
+    cv2.putText(image, str(result), (upper_bound[0], upper_bound[1] + 10), font, 0.5, (0,0,255), 1, cv2.LINE_AA)
 
-  cv2.imshow('raw image', image_color)
+  cv2.imshow('raw image', image)
   if cv2.waitKey(1) & 0xFF == ord('q'):
   	break
 
