@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>OCR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="util.js"></script>
+    <script>
+        async function readImage(imageSource) {
+            return new Promise((resolve, reject) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                const image = new Image();
+                image.onload = (function(canvas, ctx) {
+                    return function() {
+                        canvas.width = image.width;
+                        canvas.height = image.height;
+                        ctx.drawImage(this, 0, 0);
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const imageBuffer = new Uint8Array(imageData.data.buffer);
+                        const channelSize = imageBuffer.length / (imageData.width * imageData.height);
+
+                        resolve({
+                            buffer: imageBuffer,
+                            width: imageData.width,
+                            height: imageData.height,
+                            channelSize,
+                        })
+                    }
+                })(canvas, ctx);
+                image.src = imageSource;
+            });
+        }
+
+        async function rgbaToGrayscale(imageData) {
+            const img = Module._malloc(imageData.buffer.length);
+            Module.HEAPU8.set(imageData.buffer, img);
+            const result = Module._malloc(imageData.width * imageData.height);
+
+            Module.ccall(
+                'rgba_to_grayscale', 
+                null, 
+                ['number', 'number', 'number', 'number'], 
+                [imageData.width, imageData.height, img, result]
+            );
+
+            const resultImage = new Uint8Array(imageData.width * imageData.height);
+            for (let i = 0; i < imageData.width * imageData.height; i++)
+                resultImage[i] = Module.HEAPU8[result/Uint8Array.BYTES_PER_ELEMENT + i];
+
+            Module._free(img);
+            Module._free(result);
+
+            return {
+                buffer: resultImage,
+                width: imageData.width,
+                height: imageData.height,
+                channelSize: 1
+            };
+        }
+
+        async function imageDataAsRGBA(imageData) {
+            const resultImage = new Uint8Array(imageData.width * imageData.height * 4);
+            for (let i = 0; i < imageData.height; i++)
+                for (let j = 0; j < imageData.width; j++)
+                    if (imageData.channelSize == 1) {
+                        resultImage[(i * imageData.width + j) * 4] = imageData.buffer[i * imageData.width + j];
+                        resultImage[(i * imageData.width + j) * 4 + 1] = imageData.buffer[i * imageData.width + j];
+                        resultImage[(i * imageData.width + j) * 4 + 2] = imageData.buffer[i * imageData.width + j];
+                        resultImage[(i * imageData.width + j) * 4 + 3] = 255;
+                    }
+            return {
+                buffer: resultImage,
+                width: imageData.width,
+                height: imageData.height,
+                channelSize: 4,
+            }
+        }
+
+        async function imageDataToBinary(imageData, threshold) {
+            const resultImage = new Uint8Array(imageData.width * imageData.height);
+            for (let i = 0; i < imageData.height; i++)
+                for (let j = 0; j < imageData.width; j++)
+                    resultImage[i * imageData.width + j] = imageData.buffer[i * imageData.width + j] < threshold ? 1 : 0;
+            return {
+                buffer: resultImage,
+                width: imageData.width,
+                height: imageData.height,
+                channelSize: 1,
+            }
+        }
+
+        async function binaryAsRGBA(imageData) {
+            const resultImage = new Uint8Array(imageData.width * imageData.height * 4);
+            for (let i = 0; i < imageData.height; i++)
+                for (let j = 0; j < imageData.width; j++)
+                    if (imageData.channelSize == 1) {
+                        resultImage[(i * imageData.width + j) * 4] = imageData.buffer[i * imageData.width + j] > 0 ? 0 : 255;
+                        resultImage[(i * imageData.width + j) * 4 + 1] = imageData.buffer[i * imageData.width + j] > 0 ? 0 : 255;
+                        resultImage[(i * imageData.width + j) * 4 + 2] = imageData.buffer[i * imageData.width + j] > 0 ? 0 : 255;
+                        resultImage[(i * imageData.width + j) * 4 + 3] = 255;
+                    }
+            return {
+                buffer: resultImage,
+                width: imageData.width,
+                height: imageData.height,
+                channelSize: 4,
+            }
+        }
+
+        async function drawImageOnCanvas(canvas, imageData) {
+            const ctx = canvas.getContext('2d');
+            const ctxImgData = ctx.createImageData(imageData.width, imageData.height);
+            for (let i = 0; i < imageData.buffer.length; i++)
+                ctxImgData.data[i] = imageData.buffer[i];
+            ctx.putImageData(ctxImgData, 0, 0);
+        }
+
+        (async function() {
+            await new Promise(resolve => Module['onRuntimeInitialized'] = resolve);
+            var imageData = await readImage('./test.jpg');
+            var grayscaledImage = await rgbaToGrayscale(imageData);
+            
+
+            const mainCanvas = document.getElementById('main-canvas');
+            mainCanvas.width = imageData.width;
+            mainCanvas.height = imageData.height;
+            await drawImageOnCanvas(mainCanvas, imageData);
+
+            const grayscaleCanvas = document.getElementById('grayscale-canvas');
+            grayscaleCanvas.width = grayscaledImage.width;
+            grayscaleCanvas.height = grayscaledImage.height;
+            await drawImageOnCanvas(grayscaleCanvas, await imageDataAsRGBA(grayscaledImage));
+
+            const thresholdInput = document.getElementById('threshold-value');
+            thresholdInput.onchange = async function() {
+                var binaryImage = await imageDataToBinary(grayscaledImage, Number(thresholdInput.value));
+                const bwCanvas = document.getElementById('bw-canvas');
+                bwCanvas.width = binaryImage.width;
+                bwCanvas.height = binaryImage.height;
+                await drawImageOnCanvas(bwCanvas, await binaryAsRGBA(binaryImage));
+            }
+        })()
+    </script>
+</head>
+<body>
+    <div>
+        <canvas id="main-canvas" width="600" height="400"></canvas>
+    </div>
+    <div>
+        <canvas id="grayscale-canvas" width="600" height="400"></canvas>
+    </div>
+    <div>
+        <label>Threshold: </label><input type="number" id="threshold-value" >
+    </div>
+    <div>
+        <canvas id="bw-canvas" width="600" height="400"></canvas>
+    </div>
+</body>
+</html>
