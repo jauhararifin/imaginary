@@ -85,7 +85,14 @@ def thinning(img):
     return img
 
 def is_corner(img, y, x):
-    return img[y][x] != 0 and sum(generate_neighbour(img, y, x)) == 1
+    neighbours = generate_neighbour(img, y, x)
+    n = sum(neighbours)
+    sp = 0
+    for i in range(len(neighbours)):
+        j = (i + 1) % len(neighbours)
+        sp += 1 if neighbours[i] != 0 and neighbours[j] == 0 else 0
+    return img[y][x] != 0 and n > 0 and n <= 2 and sp == 1
+    # return img[y][x] != 0 and sum(generate_neighbour(img, y, x)) == 1
 
 def is_intersection(img, y, x):
     neighbours = generate_neighbour(img, y, x)
@@ -222,11 +229,10 @@ def generate_other_feature(array):
 # print(filename)
 # img = cv2.imread(filename)
 
-karakters_1 = "#$&\\'()*+,-./0123456789<>@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghklmnopqrstuvwxyz{|}~"
-
-karakters_1 = "." #not yet
-karakters_1 = "/0123456789<>@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghklmnopqrstuvwxyz{|}~"
-# karakters_1 = "abx"
+karakters_1 = "." #problem can't detect bounding box
+karakters_1 = "#$&\\'()*+,-/0123456789<>@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghklmnopqrstuvwxyz{|}~"
+# karakters_1 = "abx@"
+# karakters_1 = "bd@"
 karakters_2 = "=!:;?ij\""
 karakters_3 = "%"
 
@@ -273,7 +279,8 @@ for karakter in karakters_1:
 
     intersections_grid = []
     corners_grid = []
-
+    c_pixel_in_grid = []
+    
     for corners, intersections, upper_bound, lower_bound in zip(objects_corners, objects_intersections, upper_bounds, lower_bounds):
         x2 = int(upper_bound[0] + (((lower_bound[0] + 1) - (upper_bound[0] - 1)) * 1/3))
         x3 = int(upper_bound[0] + (((lower_bound[0] + 1) - (upper_bound[0] - 1)) * 2/3))
@@ -289,6 +296,18 @@ for karakter in karakters_1:
             locate_point_in_grid(corner_grid, x, y, x2, x3, y2, y3)
         for x, y in intersections:
             locate_point_in_grid(intersection_grid, x, y, x2, x3, y2, y3)
+        pixel_in_grid = np.zeros(9)
+        luas_bound_box = np.zeros(9)
+        img_thinned_temp = img_thinned.copy()
+        for y in range(upper_bound[1], lower_bound[1]+1):
+            for x in range(upper_bound[0], lower_bound[0]+1):
+                locate_point_in_grid(luas_bound_box, x, y, x2, x3, y2, y3)
+                if img_thinned_temp[y][x] != 0:
+                    locate_point_in_grid(pixel_in_grid, x, y, x2, x3, y2, y3)
+        for i in range(len(pixel_in_grid)):
+            if luas_bound_box[i] != 0:
+                pixel_in_grid[i] /= luas_bound_box[i]
+        c_pixel_in_grid.append(pixel_in_grid)
         intersections_grid.append(intersection_grid)
         corners_grid.append(corner_grid)
     
@@ -296,10 +315,13 @@ for karakter in karakters_1:
     i1,i2,i3 = generate_other_feature(intersections_grid[0])
     n_corner = len(objects_corners[0])
     n_intersect = len(objects_intersections[0])
+    # print(objects_corners)
+    # print(objects_intersections)
     features = []
+    features += c_pixel_in_grid[0].tolist()
     features += [n_corner]
     features += [n_intersect]
-    features += [n_corner+n_intersect]
+    # features += [n_corner+n_intersect]
     features += corners_grid[0].tolist()
     features += intersections_grid[0].tolist()
     features += c1.tolist()
